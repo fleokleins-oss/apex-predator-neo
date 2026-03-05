@@ -1,0 +1,164 @@
+# docker-compose.yml
+# APEX PREDATOR NEO v666.1 — Distributed Multi-Region Architecture
+#
+# Local: redis + lob_service + scanner
+# Remote: singapore_executor (AWS ap-southeast-1), tokyo_executor (AWS ap-northeast-1)
+#
+# Docker Swarm:
+#   docker swarm init
+#   docker stack deploy -c docker-compose.yml apex666
+
+version: "3.9"
+
+services:
+  # ═══════════════════════════════════════════════════════
+  # REDIS — Central Message Bus
+  # ═══════════════════════════════════════════════════════
+  redis:
+    image: redis:7.2-alpine
+    container_name: apex666_redis
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --tcp-backlog 511
+      --tcp-keepalive 60
+      --save ""
+      --appendonly no
+      --hz 100
+    volumes:
+      - redis_data:/data
+    networks:
+      - apex_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 512M
+
+  # ═══════════════════════════════════════════════════════
+  # LOB SERVICE — WebSocket Order Book Ingestion
+  # ═══════════════════════════════════════════════════════
+  lob_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: apex666_lob
+    env_file: .env
+    environment:
+      - APEX_ROLE=lob_service
+      - APEX_REGION=curitiba
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - apex_net
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1024M
+
+  # ═══════════════════════════════════════════════════════
+  # SCANNER — Triangle Discovery + Evaluation (Zero I/O)
+  # ═══════════════════════════════════════════════════════
+  scanner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: apex666_scanner
+    env_file: .env
+    environment:
+      - APEX_ROLE=scanner
+      - APEX_REGION=curitiba
+    depends_on:
+      redis:
+        condition: service_healthy
+      lob_service:
+        condition: service_started
+    networks:
+      - apex_net
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1024M
+
+  # ═══════════════════════════════════════════════════════
+  # SINGAPORE EXECUTOR — Deploy on AWS ap-southeast-1
+  # ═══════════════════════════════════════════════════════
+  singapore_executor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: apex666_singapore
+    env_file: .env
+    environment:
+      - APEX_ROLE=executor
+      - APEX_REGION=singapore
+      - REDIS_HOST=${REDIS_PUBLIC_HOST:-redis}
+    depends_on:
+      redis:
+        condition: service_healthy
+      scanner:
+        condition: service_started
+    networks:
+      - apex_net
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 512M
+
+  # ═══════════════════════════════════════════════════════
+  # TOKYO EXECUTOR — Deploy on AWS ap-northeast-1
+  # ═══════════════════════════════════════════════════════
+  tokyo_executor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: apex666_tokyo
+    env_file: .env
+    environment:
+      - APEX_ROLE=executor
+      - APEX_REGION=tokyo
+      - REDIS_HOST=${REDIS_PUBLIC_HOST:-redis}
+    depends_on:
+      redis:
+        condition: service_healthy
+      scanner:
+        condition: service_started
+    networks:
+      - apex_net
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 512M
+
+networks:
+  apex_net:
+    driver: bridge
+
+volumes:
+  redis_data:

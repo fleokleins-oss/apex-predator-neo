@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenClaw Predator — Market Guardian Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;700;900&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-primary: #06080c;
+    --bg-secondary: #0c1018;
+    --bg-card: #0f1520;
+    --bg-card-hover: #141c28;
+    --border: #1a2436;
+    --border-active: #2a3a56;
+    --text-primary: #e8edf5;
+    --text-secondary: #7a8ba8;
+    --text-dim: #4a5a78;
+    --accent-red: #ff3b5c;
+    --accent-red-dim: rgba(255, 59, 92, 0.15);
+    --accent-orange: #ff8c38;
+    --accent-orange-dim: rgba(255, 140, 56, 0.15);
+    --accent-cyan: #00e5ff;
+    --accent-cyan-dim: rgba(0, 229, 255, 0.1);
+    --accent-green: #00e676;
+    --accent-green-dim: rgba(0, 230, 118, 0.1);
+    --accent-purple: #b388ff;
+    --bid-color: #00c853;
+    --ask-color: #ff1744;
+    --gradient-danger: linear-gradient(135deg, #ff3b5c, #ff6d3f);
+    --gradient-safe: linear-gradient(135deg, #00e676, #00e5ff);
+  }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Layout ─────────────────────────────────────────────── */
+
+  .dashboard {
+    display: grid;
+    grid-template-columns: 1fr 1fr 340px;
+    grid-template-rows: auto 1fr 280px;
+    gap: 1px;
+    height: 100vh;
+    background: var(--border);
+  }
+
+  .header {
+    grid-column: 1 / -1;
+    background: var(--bg-secondary);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .logo {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 2px;
+    background: var(--gradient-danger);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-transform: uppercase;
+  }
+
+  .status-pill {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--accent-green-dim);
+    color: var(--accent-green);
+    border: 1px solid rgba(0, 230, 118, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .status-pill::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    animation: pulse 2s infinite;
+  }
+
+  .status-pill.danger {
+    background: var(--accent-red-dim);
+    color: var(--accent-red);
+    border-color: rgba(255, 59, 92, 0.3);
+  }
+
+  .status-pill.danger::before {
+    background: var(--accent-red);
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .header-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 6px 14px;
+    border: 1px solid var(--border-active);
+    border-radius: 6px;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+
+  .btn:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    border-color: var(--accent-cyan);
+  }
+
+  .btn.active {
+    background: var(--accent-cyan-dim);
+    color: var(--accent-cyan);
+    border-color: var(--accent-cyan);
+  }
+
+  .btn.danger {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+  }
+
+  .btn.danger:hover {
+    background: var(--accent-red-dim);
+  }
+
+  /* ── Cards ──────────────────────────────────────────────── */
+
+  .panel {
+    background: var(--bg-secondary);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-header {
+    padding: 10px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .panel-body {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── 3D Orderbook ───────────────────────────────────────── */
+
+  #three-container {
+    width: 100%;
+    height: 100%;
+  }
+
+  #three-container canvas {
+    display: block;
+  }
+
+  /* ── Heatmap ────────────────────────────────────────────── */
+
+  #heatmap-canvas {
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+  }
+
+  /* ── Alert Feed ─────────────────────────────────────────── */
+
+  .alert-feed {
+    overflow-y: auto;
+    height: 100%;
+    padding: 8px;
+  }
+
+  .alert-feed::-webkit-scrollbar { width: 4px; }
+  .alert-feed::-webkit-scrollbar-track { background: transparent; }
+  .alert-feed::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 2px; }
+
+  .alert-item {
+    padding: 10px 12px;
+    margin-bottom: 4px;
+    border-radius: 6px;
+    border-left: 3px solid var(--accent-orange);
+    background: var(--bg-card);
+    font-size: 12px;
+    animation: slideIn 0.3s ease;
+  }
+
+  .alert-item.critical { border-left-color: var(--accent-red); background: var(--accent-red-dim); }
+  .alert-item.high { border-left-color: var(--accent-orange); background: var(--accent-orange-dim); }
+  .alert-item.medium { border-left-color: var(--accent-purple); }
+  .alert-item.low { border-left-color: var(--text-dim); }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .alert-type {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  .alert-detail {
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .alert-meta {
+    margin-top: 6px;
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .confidence-bar {
+    height: 3px;
+    border-radius: 2px;
+    margin-top: 6px;
+    background: var(--border);
+    overflow: hidden;
+  }
+
+  .confidence-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s;
+  }
+
+  /* ── Confluence Score ───────────────────────────────────── */
+
+  .confluence-panel {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .score-ring {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .score-ring svg { width: 100%; height: 100%; }
+  .score-ring .track { fill: none; stroke: var(--border); stroke-width: 6; }
+  .score-ring .progress { fill: none; stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 0.6s; }
+  .score-value {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .recommendation {
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    padding: 10px;
+    border-radius: 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+  }
+
+  /* ── Timeline ───────────────────────────────────────────── */
+
+  .timeline-bar {
+    grid-column: 1 / -1;
+    background: var(--bg-secondary);
+  }
+
+  .timeline-body {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .timeline-controls {
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .timeline-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+  }
+
+  .timeline-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.4);
+  }
+
+  .speed-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--bg-card);
+    color: var(--accent-cyan);
+    border: 1px solid var(--border);
+    min-width: 42px;
+    text-align: center;
+  }
+
+  #timeline-canvas {
+    flex: 1;
+    width: 100%;
+  }
+
+  /* ── Orderbook Table ────────────────────────────────────── */
+
+  .book-table {
+    width: 100%;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    border-collapse: collapse;
+    padding: 4px 8px;
+  }
+
+  .book-row {
+    display: flex;
+    padding: 2px 12px;
+    position: relative;
+  }
+
+  .book-row .bar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    opacity: 0.12;
+    transition: width 0.2s;
+  }
+
+  .book-row.bid .bar { right: 0; background: var(--bid-color); }
+  .book-row.ask .bar { right: 0; background: var(--ask-color); }
+
+  .book-price { flex: 1; text-align: right; z-index: 1; }
+  .book-qty { flex: 1; text-align: right; z-index: 1; color: var(--text-secondary); }
+
+  .book-row.bid .book-price { color: var(--bid-color); }
+  .book-row.ask .book-price { color: var(--ask-color); }
+
+  .spread-row {
+    text-align: center;
+    padding: 4px;
+    font-size: 10px;
+    color: var(--text-dim);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── Metrics Row ────────────────────────────────────────── */
+
+  .metrics {
+    display: flex;
+    gap: 1px;
+    padding: 0;
+  }
+
+  .metric-card {
+    flex: 1;
+    padding: 10px 14px;
+    background: var(--bg-card);
+  }
+
+  .metric-label {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  .metric-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .metric-value.up { color: var(--bid-color); }
+  .metric-value.down { color: var(--ask-color); }
+</style>
+</head>
+<body>
+
+<div class="dashboard" id="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">OpenClaw Predator</div>
+      <div class="status-pill" id="conn-status">Disconnected</div>
+      <div class="status-pill" id="threat-status">Scanning</div>
+    </div>
+    <div class="header-controls">
+      <button class="btn active" id="btn-demo" onclick="startDemo()">▶ Start Demo</button>
+      <button class="btn" id="btn-replay" onclick="toggleReplay()">⟳ Replay</button>
+      <button class="btn" onclick="changeSpeed(-0.5)">−</button>
+      <span class="speed-badge" id="speed-label">1.0×</span>
+      <button class="btn" onclick="changeSpeed(0.5)">+</button>
+      <select class="btn" id="symbol-select" onchange="switchSymbol(this.value)">
+        <option value="btcusdt">BTC/USDT</option>
+        <option value="ethusdt">ETH/USDT</option>
+        <option value="solusdt">SOL/USDT</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 3D Orderbook -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>3D Orderbook Depth</span>
+      <span id="mid-price" style="color:var(--accent-cyan)">—</span>
+    </div>
+    <div class="panel-body" id="three-container"></div>
+  </div>
+
+  <!-- Heatmap -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Manipulation Heatmap</span>
+      <span id="heatmap-info" style="color:var(--text-dim)">—</span>
+    </div>
+    <div class="panel-body">
+      <canvas id="heatmap-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Right sidebar -->
+  <div class="panel" style="display:flex;flex-direction:column;">
+    <!-- Confluence -->
+    <div style="border-bottom:1px solid var(--border);padding:0;">
+      <div class="panel-header"><span>Confluence Score</span></div>
+      <div class="confluence-panel">
+        <div class="score-ring">
+          <svg viewBox="0 0 36 36">
+            <path class="track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+            <path class="progress" id="score-arc" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+              stroke="var(--accent-green)" stroke-dasharray="0, 100"/>
+          </svg>
+          <div class="score-value" id="score-value">0.00</div>
+        </div>
+        <div class="recommendation" id="recommendation">Waiting for data…</div>
+      </div>
+    </div>
+    <!-- Alert Feed -->
+    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+      <div class="panel-header"><span>Alert Feed</span><span id="alert-count">0</span></div>
+      <div class="alert-feed" id="alert-feed"></div>
+    </div>
+  </div>
+
+  <!-- Timeline + Orderbook -->
+  <div class="timeline-bar">
+    <div class="panel-header">
+      <span>Timeline Replay</span>
+      <span id="frame-info" style="color:var(--text-dim)">—</span>
+    </div>
+    <div class="timeline-body">
+      <div class="timeline-controls">
+        <button class="btn" onclick="seekStart()">⏮</button>
+        <button class="btn" id="btn-play" onclick="toggleReplay()">⏵</button>
+        <button class="btn" onclick="seekEnd()">⏭</button>
+        <input type="range" class="timeline-slider" id="timeline-slider" min="0" max="100" value="0"
+          oninput="seekTo(this.value)">
+      </div>
+      <canvas id="timeline-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Orderbook table -->
+  <div class="panel">
+    <div class="panel-header"><span>Order Book</span></div>
+    <div class="panel-body" style="overflow-y:auto;">
+      <div id="orderbook-table"></div>
+    </div>
+  </div>
+
+  <!-- Metrics -->
+  <div class="panel">
+    <div class="panel-header"><span>Metrics</span></div>
+    <div class="panel-body" style="padding:8px;display:flex;flex-direction:column;gap:1px;">
+      <div class="metric-card">
+        <div class="metric-label">Spread</div>
+        <div class="metric-value" id="m-spread">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Bid Depth (10)</div>
+        <div class="metric-value up" id="m-bid-depth">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Ask Depth (10)</div>
+        <div class="metric-value down" id="m-ask-depth">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Imbalance</div>
+        <div class="metric-value" id="m-imbalance">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Alerts / min</div>
+        <div class="metric-value" id="m-alert-rate" style="color:var(--accent-orange)">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Frames Recorded</div>
+        <div class="metric-value" id="m-frames" style="color:var(--accent-cyan)">—</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Three.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════════
+
+const state = {
+  ws: null,
+  connected: false,
+  symbol: 'btcusdt',
+  speed: 1.0,
+  replaying: false,
+  alerts: [],
+  alertTimestamps: [],
+  latestBook: null,
+  confluenceScore: 0,
+  frameCount: 0,
+  timelineData: [],   // [{timestamp, midPrice, alertCount}]
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  WEBSOCKET
+// ═══════════════════════════════════════════════════════════════════
+
+function connect() {
+  const url = `ws://localhost:8765`;
+  state.ws = new WebSocket(url);
+
+  state.ws.onopen = () => {
+    state.connected = true;
+    document.getElementById('conn-status').textContent = 'Connected';
+    document.getElementById('conn-status').className = 'status-pill';
+  };
+
+  state.ws.onclose = () => {
+    state.connected = false;
+    document.getElementById('conn-status').textContent = 'Disconnected';
+    document.getElementById('conn-status').className = 'status-pill danger';
+    setTimeout(connect, 3000);
+  };
+
+  state.ws.onerror = () => {};
+
+  state.ws.onmessage = (evt) => {
+    try {
+      const msg = JSON.parse(evt.data);
+      handleMessage(msg);
+    } catch(e) {}
+  };
+}
+
+function send(obj) {
+  if (state.ws && state.ws.readyState === 1) {
+    state.ws.send(JSON.stringify(obj));
+  }
+}
+
+function handleMessage(msg) {
+  switch(msg.type) {
+    case 'orderbook':
+      onOrderbook(msg.data);
+      break;
+    case 'alert':
+      onAlert(msg.data);
+      break;
+    case 'confluence':
+      onConfluence(msg.data);
+      break;
+    case 'replay_frame':
+      onReplayFrame(msg);
+      break;
+    case 'heatmap_frame':
+      onHeatmap(msg);
+      break;
+    case 'trade':
+      break;
+    case 'replay_state':
+      onReplayState(msg.data);
+      break;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  HANDLERS
+// ═══════════════════════════════════════════════════════════════════
+
+function onOrderbook(data) {
+  state.latestBook = data;
+  state.frameCount++;
+  updateOrderbookTable(data);
+  updateMetrics(data);
+  update3DOrderbook(data);
+  // Timeline tracking
+  state.timelineData.push({
+    timestamp: data.timestamp,
+    midPrice: data.mid_price,
+    alertCount: 0,
+  });
+  if (state.timelineData.length > 2000) state.timelineData.shift();
+  drawTimeline();
+}
+
+function onAlert(data) {
+  state.alerts.unshift(data);
+  if (state.alerts.length > 200) state.alerts.pop();
+  state.alertTimestamps.push(Date.now());
+  renderAlertFeed();
+  updateThreatStatus(data.level);
+  // Mark on timeline
+  if (state.timelineData.length > 0) {
+    state.timelineData[state.timelineData.length - 1].alertCount++;
+  }
+}
+
+function onConfluence(data) {
+  state.confluenceScore = data.score;
+  updateConfluence(data);
+}
+
+function onReplayFrame(msg) {
+  if (msg.snapshot) onOrderbook(msg.snapshot);
+  if (msg.alerts) msg.alerts.forEach(a => onAlert(a));
+  const slider = document.getElementById('timeline-slider');
+  slider.max = msg.total_frames;
+  slider.value = msg.frame_index;
+  document.getElementById('frame-info').textContent =
+    `Frame ${msg.frame_index} / ${msg.total_frames}`;
+}
+
+function onHeatmap(data) {
+  drawHeatmap(data);
+}
+
+function onReplayState(data) {
+  state.replaying = data.playing;
+  document.getElementById('btn-play').textContent = data.playing ? '⏸' : '⏵';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CONTROLS
+// ═══════════════════════════════════════════════════════════════════
+
+function startDemo() {
+  send({ action: 'start_demo', symbol: state.symbol, duration: 120 });
+  document.getElementById('btn-demo').classList.add('active');
+}
+
+function toggleReplay() {
+  if (state.replaying) {
+    send({ action: 'replay_stop', symbol: state.symbol });
+  } else {
+    send({ action: 'replay_start', symbol: state.symbol, speed: state.speed, loop: true });
+  }
+  state.replaying = !state.replaying;
+}
+
+function changeSpeed(delta) {
+  state.speed = Math.max(0.1, Math.min(20, state.speed + delta));
+  document.getElementById('speed-label').textContent = state.speed.toFixed(1) + '×';
+  send({ action: 'replay_speed', symbol: state.symbol, speed: state.speed });
+}
+
+function seekTo(val) {
+  send({ action: 'replay_seek', symbol: state.symbol, frame: parseInt(val) });
+}
+function seekStart() { seekTo(0); }
+function seekEnd() { seekTo(document.getElementById('timeline-slider').max); }
+
+function switchSymbol(s) {
+  state.symbol = s;
+  state.alerts = [];
+  state.timelineData = [];
+  renderAlertFeed();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  ORDERBOOK TABLE
+// ═══════════════════════════════════════════════════════════════════
+
+function updateOrderbookTable(data) {
+  const container = document.getElementById('orderbook-table');
+  const asks = (data.asks || []).slice(0, 12).reverse();
+  const bids = (data.bids || []).slice(0, 12);
+  const maxQty = Math.max(
+    ...asks.map(a => a[1]),
+    ...bids.map(b => b[1]),
+    0.001
+  );
+
+  let html = '';
+  for (const [price, qty] of asks) {
+    const pct = (qty / maxQty * 100).toFixed(1);
+    html += `<div class="book-row ask">
+      <div class="bar" style="width:${pct}%"></div>
+      <span class="book-price">${price.toFixed(2)}</span>
+      <span class="book-qty">${qty.toFixed(4)}</span>
+    </div>`;
+  }
+  html += `<div class="spread-row">Spread: ${data.spread.toFixed(2)}</div>`;
+  for (const [price, qty] of bids) {
+    const pct = (qty / maxQty * 100).toFixed(1);
+    html += `<div class="book-row bid">
+      <div class="bar" style="width:${pct}%"></div>
+      <span class="book-price">${price.toFixed(2)}</span>
+      <span class="book-qty">${qty.toFixed(4)}</span>
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  METRICS
+// ═══════════════════════════════════════════════════════════════════
+
+function updateMetrics(data) {
+  document.getElementById('m-spread').textContent = data.spread.toFixed(2);
+  document.getElementById('mid-price').textContent = '$' + data.mid_price.toFixed(2);
+
+  const bidDepth = (data.bids || []).slice(0, 10).reduce((s, l) => s + l[1], 0);
+  const askDepth = (data.asks || []).slice(0, 10).reduce((s, l) => s + l[1], 0);
+  document.getElementById('m-bid-depth').textContent = bidDepth.toFixed(2);
+  document.getElementById('m-ask-depth').textContent = askDepth.toFixed(2);
+
+  const imb = askDepth > 0 ? (bidDepth / askDepth).toFixed(2) : '∞';
+  document.getElementById('m-imbalance').textContent = imb;
+
+  // Alert rate (last 60s)
+  const now = Date.now();
+  const recent = state.alertTimestamps.filter(t => now - t < 60000);
+  state.alertTimestamps = recent;
+  document.getElementById('m-alert-rate').textContent = recent.length;
+  document.getElementById('m-frames').textContent = state.frameCount;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  ALERT FEED
+// ═══════════════════════════════════════════════════════════════════
+
+function renderAlertFeed() {
+  const feed = document.getElementById('alert-feed');
+  const visible = state.alerts.slice(0, 40);
+  document.getElementById('alert-count').textContent = state.alerts.length;
+  feed.innerHTML = visible.map(a => {
+    const cls = a.level || 'low';
+    const time = new Date(a.timestamp * 1000).toLocaleTimeString();
+    const pz = a.price_zone ? `$${a.price_zone[0].toFixed(0)}` : '';
+    const conf = (a.confidence * 100).toFixed(0);
+    const confColor = a.confidence > 0.7 ? 'var(--accent-red)' :
+                      a.confidence > 0.4 ? 'var(--accent-orange)' : 'var(--accent-green)';
+    const details = a.details || {};
+    return `<div class="alert-item ${cls}">
+      <div class="alert-type" style="color:${confColor}">${a.type || 'unknown'}</div>
+      <div class="alert-detail">${details.pattern || ''} ${details.side ? '(' + details.side + ')' : ''} ${pz}</div>
+      <div class="confidence-bar"><div class="confidence-fill" style="width:${conf}%;background:${confColor}"></div></div>
+      <div class="alert-meta"><span>${time}</span><span>${conf}%</span></div>
+    </div>`;
+  }).join('');
+}
+
+function updateThreatStatus(level) {
+  const el = document.getElementById('threat-status');
+  if (level === 'critical' || level === 'high') {
+    el.textContent = level.toUpperCase();
+    el.className = 'status-pill danger';
+  } else {
+    el.textContent = 'Scanning';
+    el.className = 'status-pill';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CONFLUENCE
+// ═══════════════════════════════════════════════════════════════════
+
+function updateConfluence(data) {
+  const pct = (data.score * 100).toFixed(0);
+  const circumference = 100;
+  const offset = circumference - (data.score * circumference);
+  const arc = document.getElementById('score-arc');
+  const color = data.score > 0.6 ? 'var(--accent-red)' :
+                data.score > 0.3 ? 'var(--accent-orange)' : 'var(--accent-green)';
+  arc.style.stroke = color;
+  arc.setAttribute('stroke-dasharray', `${data.score * 100}, 100`);
+  document.getElementById('score-value').textContent = data.score.toFixed(2);
+  document.getElementById('score-value').style.color = color;
+  document.getElementById('recommendation').textContent = data.recommendation || '—';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  THREE.JS 3D ORDERBOOK
+// ═══════════════════════════════════════════════════════════════════
+
+let scene, camera, renderer, bidBars = [], askBars = [];
+const MAX_3D_LEVELS = 15;
+
+function init3D() {
+  const container = document.getElementById('three-container');
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x06080c);
+  scene.fog = new THREE.Fog(0x06080c, 20, 60);
+
+  camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 100);
+  camera.position.set(0, 8, 18);
+  camera.lookAt(0, 1, 0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  container.appendChild(renderer.domElement);
+
+  // Lights
+  const ambient = new THREE.AmbientLight(0x334466, 0.6);
+  scene.add(ambient);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+  dir.position.set(5, 10, 7);
+  scene.add(dir);
+  const point = new THREE.PointLight(0x00e5ff, 0.5, 30);
+  point.position.set(0, 5, 0);
+  scene.add(point);
+
+  // Ground plane
+  const groundGeo = new THREE.PlaneGeometry(40, 20);
+  const groundMat = new THREE.MeshStandardMaterial({
+    color: 0x0a0f18, metalness: 0.8, roughness: 0.4
+  });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = 0;
+  scene.add(ground);
+
+  // Grid
+  const grid = new THREE.GridHelper(40, 40, 0x1a2436, 0x0f1520);
+  grid.position.y = 0.01;
+  scene.add(grid);
+
+  // Center line
+  const lineGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0.02, -10),
+    new THREE.Vector3(0, 0.02, 10),
+  ]);
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.5 });
+  scene.add(new THREE.Line(lineGeo, lineMat));
+
+  // Create bar meshes
+  const bidMat = new THREE.MeshStandardMaterial({
+    color: 0x00c853, metalness: 0.3, roughness: 0.6, transparent: true, opacity: 0.85
+  });
+  const askMat = new THREE.MeshStandardMaterial({
+    color: 0xff1744, metalness: 0.3, roughness: 0.6, transparent: true, opacity: 0.85
+  });
+
+  for (let i = 0; i < MAX_3D_LEVELS; i++) {
+    const geo = new THREE.BoxGeometry(0.6, 1, 0.6);
+    const bidBar = new THREE.Mesh(geo, bidMat.clone());
+    const askBar = new THREE.Mesh(geo, askMat.clone());
+    bidBar.position.set(-(i * 0.8 + 0.5), 0.5, 0);
+    askBar.position.set(i * 0.8 + 0.5, 0.5, 0);
+    scene.add(bidBar);
+    scene.add(askBar);
+    bidBars.push(bidBar);
+    askBars.push(askBar);
+  }
+
+  animate3D();
+}
+
+function animate3D() {
+  requestAnimationFrame(animate3D);
+  // Gentle camera orbit
+  const t = Date.now() * 0.0001;
+  camera.position.x = Math.sin(t) * 2;
+  camera.lookAt(0, 2, 0);
+  renderer.render(scene, camera);
+}
+
+function update3DOrderbook(data) {
+  if (!scene) return;
+  const bids = data.bids || [];
+  const asks = data.asks || [];
+  const maxQty = Math.max(
+    ...bids.slice(0, MAX_3D_LEVELS).map(l => l[1]),
+    ...asks.slice(0, MAX_3D_LEVELS).map(l => l[1]),
+    0.001
+  );
+
+  for (let i = 0; i < MAX_3D_LEVELS; i++) {
+    // Bids
+    if (i < bids.length) {
+      const h = Math.max(0.05, (bids[i][1] / maxQty) * 8);
+      bidBars[i].scale.y = h;
+      bidBars[i].position.y = h * 0.5;
+      const intensity = bids[i][1] / maxQty;
+      bidBars[i].material.emissive = new THREE.Color(0x00c853).multiplyScalar(intensity * 0.5);
+    } else {
+      bidBars[i].scale.y = 0.01;
+    }
+    // Asks
+    if (i < asks.length) {
+      const h = Math.max(0.05, (asks[i][1] / maxQty) * 8);
+      askBars[i].scale.y = h;
+      askBars[i].position.y = h * 0.5;
+      const intensity = asks[i][1] / maxQty;
+      askBars[i].material.emissive = new THREE.Color(0xff1744).multiplyScalar(intensity * 0.5);
+    } else {
+      askBars[i].scale.y = 0.01;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  HEATMAP (Canvas 2D — inferno-inspired palette)
+// ═══════════════════════════════════════════════════════════════════
+
+function infernoColor(t) {
+  // Simplified inferno colormap
+  t = Math.max(0, Math.min(1, t));
+  const r = Math.min(255, Math.floor(t < 0.5 ? t * 2 * 180 : 180 + (t - 0.5) * 2 * 75));
+  const g = Math.min(255, Math.floor(t < 0.4 ? t * 10 : t < 0.7 ? 40 + (t - 0.4) * 400 : 160 + (t - 0.7) * 300));
+  const b = Math.min(255, Math.floor(t < 0.3 ? 10 + t * 500 : t < 0.6 ? 160 - (t - 0.3) * 400 : 40));
+  return [r, g, b];
+}
+
+function drawHeatmap(data) {
+  const canvas = document.getElementById('heatmap-canvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.parentElement.clientWidth;
+  const h = canvas.parentElement.clientHeight;
+  canvas.width = w;
+  canvas.height = h;
+
+  const grid = data.depth_grid || [];
+  const agrid = data.alert_grid || [];
+  const timeBins = grid.length;
+  const priceBins = timeBins > 0 ? grid[0].length : 0;
+  if (timeBins === 0 || priceBins === 0) return;
+
+  const cellW = w / timeBins;
+  const cellH = h / priceBins;
+  const imageData = ctx.createImageData(w, h);
+  const pixels = imageData.data;
+
+  for (let tx = 0; tx < timeBins; tx++) {
+    for (let py = 0; py < priceBins; py++) {
+      const val = grid[tx][py] || 0;
+      const alertVal = (agrid[tx] && agrid[tx][py]) || 0;
+
+      // Map pixel coordinates
+      const px0 = Math.floor(tx * cellW);
+      const px1 = Math.floor((tx + 1) * cellW);
+      const py0 = Math.floor((priceBins - 1 - py) * cellH);
+      const py1 = Math.floor((priceBins - py) * cellH);
+
+      const [r, g, b] = infernoColor(val);
+      // Blend alert overlay (red channel boost)
+      const ar = Math.min(255, r + alertVal * 200);
+      const ag = Math.max(0, g - alertVal * 100);
+      const ab = Math.max(0, b - alertVal * 50);
+
+      for (let x = px0; x < Math.min(px1, w); x++) {
+        for (let y = py0; y < Math.min(py1, h); y++) {
+          const idx = (y * w + x) * 4;
+          pixels[idx] = ar;
+          pixels[idx + 1] = ag;
+          pixels[idx + 2] = ab;
+          pixels[idx + 3] = 255;
+        }
+      }
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+
+  // Overlay alert markers
+  const markers = data.markers || [];
+  ctx.strokeStyle = 'rgba(255, 59, 92, 0.8)';
+  ctx.lineWidth = 2;
+  for (const m of markers.slice(-20)) {
+    const x = (m.col / timeBins) * w;
+    const y = ((priceBins - m.row_lo) / priceBins) * h;
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  document.getElementById('heatmap-info').textContent =
+    `${data.price_min?.toFixed(0)} — ${data.price_max?.toFixed(0)}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  TIMELINE (Canvas)
+// ═══════════════════════════════════════════════════════════════════
+
+function drawTimeline() {
+  const canvas = document.getElementById('timeline-canvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.parentElement.clientWidth;
+  const h = canvas.parentElement.clientHeight - 40;
+  canvas.width = w;
+  canvas.height = h;
+
+  const data = state.timelineData;
+  if (data.length < 2) return;
+
+  ctx.fillStyle = '#0c1018';
+  ctx.fillRect(0, 0, w, h);
+
+  // Price line
+  const prices = data.map(d => d.midPrice);
+  const minP = Math.min(...prices);
+  const maxP = Math.max(...prices);
+  const rangeP = maxP - minP || 1;
+
+  ctx.strokeStyle = 'rgba(0, 229, 255, 0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < data.length; i++) {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - ((data[i].midPrice - minP) / rangeP) * (h * 0.8) - h * 0.1;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Alert markers
+  for (let i = 0; i < data.length; i++) {
+    if (data[i].alertCount > 0) {
+      const x = (i / (data.length - 1)) * w;
+      const intensity = Math.min(1, data[i].alertCount / 3);
+      ctx.fillStyle = `rgba(255, 59, 92, ${0.3 + intensity * 0.7})`;
+      ctx.fillRect(x - 1, 0, 3, h);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  RESIZE
+// ═══════════════════════════════════════════════════════════════════
+
+function handleResize() {
+  if (renderer) {
+    const container = document.getElementById('three-container');
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }
+}
+
+window.addEventListener('resize', handleResize);
+
+// ═══════════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', () => {
+  init3D();
+  connect();
+});
+</script>
+</body>
+</html>
